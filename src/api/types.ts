@@ -42,6 +42,13 @@ export interface TokenResponse {
   token_type: string;
 }
 
+// User registration request
+export interface UserRegister {
+  username: string;
+  email: string;
+  password: string;
+}
+
 // User info
 export interface UserInfo {
   id: number;

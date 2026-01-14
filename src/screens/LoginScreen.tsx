@@ -15,8 +15,23 @@ import {
   Platform,
 } from 'react-native';
 import {useAuth} from '../context/AuthContext';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 
-export default function LoginScreen(): JSX.Element {
+type RootStackParamList = {
+  Login: undefined;
+  Registration: undefined;
+};
+
+type LoginScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  'Login'
+>;
+
+interface Props {
+  navigation: LoginScreenNavigationProp;
+}
+
+export default function LoginScreen({navigation}: Props): JSX.Element {
   const {login, isLoading} = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -88,6 +103,15 @@ export default function LoginScreen(): JSX.Element {
               <Text style={styles.buttonText}>Se connecter</Text>
             )}
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkContainer}
+            onPress={() => navigation.navigate('Registration')}
+            disabled={isSubmitting}>
+            <Text style={styles.linkText}>
+              Pas encore de compte? <Text style={styles.linkBold}>Créer un compte</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -150,6 +174,18 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  linkContainer: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  linkBold: {
+    color: '#2E7D32',
     fontWeight: '600',
   },
 });

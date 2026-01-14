@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   TokenResponse,
   UserInfo,
+  UserRegister,
   UserStatistics,
   JourneyCreate,
   JourneyRead,
@@ -174,6 +175,28 @@ class ApiClient {
   }
 
   // ==================== AUTH ENDPOINTS ====================
+
+  /**
+   * Register a new user
+   */
+  async register(userData: UserRegister): Promise<TokenResponse> {
+    const response = await fetch(`${this.baseUrl}/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Registration failed: ${errorBody}`);
+    }
+
+    const tokens: TokenResponse = await response.json();
+    await this.saveTokens(tokens);
+    return tokens;
+  }
 
   /**
    * Login with username and password

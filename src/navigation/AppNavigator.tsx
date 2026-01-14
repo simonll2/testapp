@@ -8,6 +8,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAuth} from '../context/AuthContext';
 import {
   LoginScreen,
+  RegistrationScreen,
   HomeScreen,
   PendingJourneysScreen,
   PendingJourneyDetailScreen,
@@ -18,6 +19,7 @@ import {ActivityIndicator, View, StyleSheet} from 'react-native';
 // Define navigation types
 export type RootStackParamList = {
   Login: undefined;
+  Registration: undefined;
   Home: undefined;
   PendingJourneys: undefined;
   PendingJourneyDetail: {journeyId: number};
@@ -41,6 +43,7 @@ function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{headerShown: false}}>
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Registration" component={RegistrationScreen} />
     </Stack.Navigator>
   );
 }
