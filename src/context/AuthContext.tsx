@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   user: UserInfo | null;
   login: (username: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -67,6 +68,18 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
     }
   }, []);
 
+  const register = useCallback(async (username: string, email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      await apiClient.register({username, email, password});
+      const userInfo = await apiClient.getMe();
+      setUser(userInfo);
+      setIsAuthenticated(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await apiClient.logout();
     setUser(null);
@@ -87,6 +100,7 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
     isLoading,
     user,
     login,
+    register,
     logout,
     refreshUser,
   };
