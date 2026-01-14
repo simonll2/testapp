@@ -146,6 +146,22 @@ class TripDetection {
   }
 
   /**
+   * Enable or disable native debug/demo mode (POC)
+   */
+  async setDebugMode(enabled: boolean): Promise<void> {
+    if (Platform.OS !== 'android') return;
+    return TripDetectionModule.setDebugMode(enabled);
+  }
+
+  /**
+   * Ask native side to create a simulated trip (used for testing full app workflow)
+   */
+  async simulateTrip(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+    return TripDetectionModule.simulateTrip();
+  }
+
+  /**
    * Subscribe to trip detection events
    */
   addTripDetectedListener(

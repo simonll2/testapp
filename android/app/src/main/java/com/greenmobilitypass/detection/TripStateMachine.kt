@@ -42,6 +42,34 @@ class TripStateMachine {
     fun processActivity(event: ActivityEvent) {
         Log.d(TAG, "Processing activity: ${event.activityType}, confidence: ${event.confidence}, state: $currentState")
 
+        // POC DEBUG: If global debug mode is enabled, force a short trip on low-confidence moving events
+        try {
+            if (com.greenmobilitypass.bridge.TripDetectionModule.debugMode && event.confidence >= 20 && isMovingActivity(event)) {
+                Log.d(TAG, "DEBUG mode active - forcing artificial trip for ${event.activityType}")
+
+                val now = System.currentTimeMillis()
+                val twoMinutesMs = 2 * 60 * 1000L
+                val durationMinutes = 2
+                val distanceKm = 0.15 // small indoor-ish distance
+
+                val detectedTrip = DetectedTrip(
+                    timeDeparture = now - twoMinutesMs,
+                    timeArrival = now,
+                    durationMinutes = durationMinutes,
+                    distanceKm = String.format("%.2f", distanceKm).toDouble(),
+                    transportType = event.activityType.toTransportType(),
+                    confidenceAvg = event.confidence
+                )
+
+                onTripDetected?.invoke(detectedTrip)
+                resetState()
+                currentState = TripState.IDLE
+                return
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error while applying debug force-trip", e)
+        }
+
         when (currentState) {
             TripState.IDLE -> handleIdleState(event)
             TripState.IN_TRIP -> handleInTripState(event)

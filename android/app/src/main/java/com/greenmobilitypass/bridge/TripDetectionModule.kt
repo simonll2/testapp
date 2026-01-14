@@ -32,6 +32,10 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
         // Event names for React Native
         const val EVENT_TRIP_DETECTED = "onTripDetected"
         const val EVENT_DETECTION_STATE_CHANGED = "onDetectionStateChanged"
+        
+        // Debug/demo mode flag (POC) - can be toggled from React Native
+        @JvmField
+        var debugMode: Boolean = false
     }
 
     private val database: AppDatabase by lazy {
@@ -372,6 +376,57 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
     private fun setupTripListener() {
         TripDetectionService.getInstance()?.onTripDetectedListener = { journey ->
             sendEvent(EVENT_TRIP_DETECTED, journeyToMap(journey))
+        }
+    }
+
+    /**
+     * Enable or disable debug/demo mode from React Native.
+     * When enabled, the native state machine may force small trips for debugging.
+     */
+    @ReactMethod
+    fun setDebugMode(enabled: Boolean) {
+        debugMode = enabled
+        Log.d(TAG, "Debug mode set: $enabled")
+        // Notify JS that detection state did not change, but useful for UI
+        sendEvent(
+            EVENT_DETECTION_STATE_CHANGED,
+            Arguments.createMap().apply { putBoolean("debugMode", enabled) }
+        )
+    }
+
+    /**
+     * Create a fake LocalJourney and insert into Room, then notify JS.
+     * Used to test the full flow (Room -> UI -> backend) from the mobile app UI.
+     */
+    @ReactMethod
+    fun simulateTrip() {
+        scope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val tenMinutesMs = 10 * 60 * 1000L
+                val localJourney = LocalJourney(
+                    timeDeparture = now - tenMinutesMs,
+                    timeArrival = now,
+                    durationMinutes = 10,
+                    distanceKm = 0.8,
+                    detectedTransportType = "marche",
+                    confidenceAvg = 80,
+                    placeDeparture = "DEBUG: Simulated",
+                    placeArrival = "DEBUG: Simulated"
+                )
+
+                val id = withContext(Dispatchers.IO) {
+                    database.localJourneyDao().insertJourney(localJourney)
+                }
+
+                val saved = localJourney.copy(id = id)
+                Log.d(TAG, "Simulated journey inserted with id=$id")
+
+                // Emit event to React Native so UI can react as if a trip was detected
+                sendEvent(EVENT_TRIP_DETECTED, journeyToMap(saved))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to simulate trip", e)
+            }
         }
     }
 

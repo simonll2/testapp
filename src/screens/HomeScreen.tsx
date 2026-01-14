@@ -33,6 +33,7 @@ export default function HomeScreen(): JSX.Element {
   const {user, logout} = useAuth();
 
   const [isDetectionRunning, setIsDetectionRunning] = useState(false);
+  const [debugEnabled, setDebugEnabled] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [statistics, setStatistics] = useState<UserStatistics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -228,6 +229,37 @@ export default function HomeScreen(): JSX.Element {
               <Text style={styles.buttonText}>Demarrer la detection</Text>
             </TouchableOpacity>
           )}
+
+          {/* DEBUG / DEMO controls (POC) */}
+          <View style={{height: 12}} />
+          <TouchableOpacity
+            style={[styles.button, debugEnabled ? styles.stopButton : styles.startButton]}
+            onPress={async () => {
+              try {
+                await tripDetection.setDebugMode(!debugEnabled);
+                setDebugEnabled(!debugEnabled);
+                Alert.alert('Mode DEBUG', !debugEnabled ? 'Activé' : 'Désactivé');
+              } catch (e) {
+                console.error('Failed to toggle debug mode', e);
+              }
+            }}>
+            <Text style={styles.buttonText}>{debugEnabled ? 'Désactiver mode DEBUG' : 'Activer mode DEBUG'}</Text>
+          </TouchableOpacity>
+
+          <View style={{height: 8}} />
+          <TouchableOpacity
+            style={[styles.button, styles.startButton]}
+            onPress={async () => {
+              try {
+                await tripDetection.simulateTrip();
+                Alert.alert('Simulateur', 'Trajet simulé inséré.');
+                loadPendingCount();
+              } catch (e) {
+                console.error('Failed to simulate trip', e);
+              }
+            }}>
+            <Text style={styles.buttonText}>Simuler un trajet</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
