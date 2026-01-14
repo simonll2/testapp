@@ -18,7 +18,8 @@ const ACCESS_TOKEN_KEY = '@GMP_access_token';
 const REFRESH_TOKEN_KEY = '@GMP_refresh_token';
 
 // API base URL - configure this for your backend
-const API_BASE_URL = 'http://10.0.2.2:8000'; // Android emulator localhost
+//const API_BASE_URL = 'http://10.0.2.2:8000'; // Android emulator localhost
+const API_BASE_URL = 'https://unclearly-valvar-cristie.ngrok-free.dev' //forward by ngrok
 
 class ApiClient {
   private baseUrl: string;

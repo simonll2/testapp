@@ -18,7 +18,8 @@ import kotlinx.coroutines.*
 
 /**
  * React Native Native Module for trip detection.
- * Exposes Kotlin functionality to the JavaScript layer.
+ * Fix: Android 14+ location FGS requirements (FGS type "location" requires COARSE or FINE runtime permission),
+ * while keeping the original JS-exposed API intact.
  */
 class TripDetectionModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -26,6 +27,7 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
     companion object {
         private const val TAG = "TripDetectionModule"
         private const val MODULE_NAME = "TripDetectionModule"
+        private const val PERMISSION_REQUEST_CODE = 1001
 
         // Event names for React Native
         const val EVENT_TRIP_DETECTED = "onTripDetected"
@@ -55,8 +57,9 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
         try {
             val context = reactApplicationContext
 
-            // Check permissions first
+            // Check permissions first (CRITICAL for Android 14+ FGS type location)
             if (!hasRequiredPermissions()) {
+                Log.w(TAG, "Required permissions not granted, cannot start detection")
                 promise.reject("PERMISSION_DENIED", "Required permissions not granted")
                 return
             }
@@ -78,10 +81,10 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
             Log.d(TAG, "Detection service started")
             promise.resolve(true)
 
-            sendEvent(EVENT_DETECTION_STATE_CHANGED, Arguments.createMap().apply {
-                putBoolean("isRunning", true)
-            })
-
+            sendEvent(
+                EVENT_DETECTION_STATE_CHANGED,
+                Arguments.createMap().apply { putBoolean("isRunning", true) }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start detection", e)
             promise.reject("START_FAILED", e.message)
@@ -104,10 +107,10 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
             Log.d(TAG, "Detection service stopped")
             promise.resolve(true)
 
-            sendEvent(EVENT_DETECTION_STATE_CHANGED, Arguments.createMap().apply {
-                putBoolean("isRunning", false)
-            })
-
+            sendEvent(
+                EVENT_DETECTION_STATE_CHANGED,
+                Arguments.createMap().apply { putBoolean("isRunning", false) }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop detection", e)
             promise.reject("STOP_FAILED", e.message)
@@ -180,18 +183,21 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
                     val journey = database.localJourneyDao().getJourney(id.toLong())
                     if (journey != null) {
                         val updatedJourney = journey.copy(
-                            detectedTransportType = if (updates.hasKey("transportType"))
-                                updates.getString("transportType") ?: journey.detectedTransportType
-                            else journey.detectedTransportType,
-                            distanceKm = if (updates.hasKey("distanceKm"))
-                                updates.getDouble("distanceKm")
-                            else journey.distanceKm,
-                            placeDeparture = if (updates.hasKey("placeDeparture"))
-                                updates.getString("placeDeparture") ?: journey.placeDeparture
-                            else journey.placeDeparture,
-                            placeArrival = if (updates.hasKey("placeArrival"))
-                                updates.getString("placeArrival") ?: journey.placeArrival
-                            else journey.placeArrival,
+                            detectedTransportType =
+                                if (updates.hasKey("transportType"))
+                                    updates.getString("transportType") ?: journey.detectedTransportType
+                                else journey.detectedTransportType,
+                            distanceKm =
+                                if (updates.hasKey("distanceKm")) updates.getDouble("distanceKm")
+                                else journey.distanceKm,
+                            placeDeparture =
+                                if (updates.hasKey("placeDeparture"))
+                                    updates.getString("placeDeparture") ?: journey.placeDeparture
+                                else journey.placeDeparture,
+                            placeArrival =
+                                if (updates.hasKey("placeArrival"))
+                                    updates.getString("placeArrival") ?: journey.placeArrival
+                                else journey.placeArrival,
                             updatedAt = System.currentTimeMillis()
                         )
                         database.localJourneyDao().updateJourney(updatedJourney)
@@ -268,6 +274,7 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
     fun checkPermissions(promise: Promise) {
         val result = Arguments.createMap().apply {
             putBoolean("activityRecognition", hasActivityRecognitionPermission())
+            putBoolean("location", hasAnyLocationPermission())
             putBoolean("notifications", hasNotificationPermission())
             putBoolean("allGranted", hasRequiredPermissions())
         }
@@ -291,6 +298,14 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
             permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
 
+        // Android Studio suggested declaring both; runtime we request both to be explicit.
+        if (!hasCoarseLocationPermission()) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        if (!hasFineLocationPermission()) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission()) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -303,17 +318,19 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
         ActivityCompat.requestPermissions(
             activity,
             permissions.toTypedArray(),
-            1001
+            PERMISSION_REQUEST_CODE
         )
 
-        // Note: In a production app, you'd implement ActivityResultCallback
-        // For this POC, we resolve immediately and let the user check again
+        // POC choice: JS should call checkPermissions() again (or try startDetection()) after user action
         promise.resolve(false)
     }
 
     private fun hasRequiredPermissions(): Boolean {
+        // For FGS type location on targetSdk 34+, you must hold FOREGROUND_SERVICE_LOCATION (manifest)
+        // AND at runtime have at least COARSE or FINE location granted.
         return hasActivityRecognitionPermission() &&
-               (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasNotificationPermission())
+                hasAnyLocationPermission() &&
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasNotificationPermission())
     }
 
     private fun hasActivityRecognitionPermission(): Boolean {
@@ -321,6 +338,24 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
             reactApplicationContext,
             Manifest.permission.ACTIVITY_RECOGNITION
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasFineLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            reactApplicationContext,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasCoarseLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            reactApplicationContext,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasAnyLocationPermission(): Boolean {
+        return hasFineLocationPermission() || hasCoarseLocationPermission()
     }
 
     private fun hasNotificationPermission(): Boolean {
