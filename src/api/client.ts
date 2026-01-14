@@ -102,7 +102,7 @@ class ApiClient {
     retry = true,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const headers: HeadersInit = {
+    const headers: HeadersInit_ = {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     };
