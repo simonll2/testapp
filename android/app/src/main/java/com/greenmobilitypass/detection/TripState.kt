@@ -26,10 +26,10 @@ enum class DetectedActivityType {
      */
     fun toTransportType(): String {
         return when (this) {
-            WALKING, RUNNING -> "apied"
+            WALKING, RUNNING -> "marche"
             ON_BICYCLE -> "velo"
             IN_VEHICLE -> "voiture"
-            STILL, UNKNOWN -> "apied" // Default fallback
+            STILL, UNKNOWN -> "marche" // Default fallback
         }
     }
 

@@ -3,7 +3,7 @@
  */
 
 // Transport types accepted by the backend
-export type TransportType = 'apied' | 'velo' | 'transport_commun' | 'voiture';
+export type TransportType = 'marche' | 'velo' | 'transport_commun' | 'voiture';
 
 // Detection source
 export type DetectionSource = 'auto' | 'manual';

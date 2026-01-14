@@ -27,7 +27,7 @@ type RouteType = RouteProp<RootStackParamList, 'PendingJourneyDetail'>;
 
 const TRANSPORT_OPTIONS: {value: TransportType; label: string; icon: string}[] =
   [
-    {value: 'apied', label: 'A pied', icon: '🚶'},
+    {value: 'marche', label: 'Marche', icon: '🚶'},
     {value: 'velo', label: 'Velo', icon: '🚴'},
     {value: 'transport_commun', label: 'Transport en commun', icon: '🚌'},
     {value: 'voiture', label: 'Voiture', icon: '🚗'},
@@ -45,7 +45,7 @@ export default function PendingJourneyDetailScreen(): JSX.Element {
   const [rewardScore, setRewardScore] = useState(0);
 
   // Editable fields
-  const [transportType, setTransportType] = useState<TransportType>('apied');
+  const [transportType, setTransportType] = useState<TransportType>('marche');
   const [distanceKm, setDistanceKm] = useState('');
   const [placeDeparture, setPlaceDeparture] = useState('');
   const [placeArrival, setPlaceArrival] = useState('');

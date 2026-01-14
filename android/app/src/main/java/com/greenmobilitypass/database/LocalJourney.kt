@@ -22,7 +22,7 @@ data class LocalJourney(
     // Estimated distance in kilometers
     val distanceKm: Double,
 
-    // Detected transport type: "apied", "velo", "voiture", "transport_commun"
+    // Detected transport type: "marche", "velo", "voiture", "transport_commun"
     val detectedTransportType: String,
 
     // Average confidence of detection (0-100)

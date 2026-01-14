@@ -49,7 +49,7 @@ export default function ValidatedJourneysScreen(): JSX.Element {
 
   const getTransportLabel = (type: string): string => {
     const labels: Record<string, string> = {
-      apied: 'A pied',
+      marche: 'Marche',
       velo: 'Velo',
       voiture: 'Voiture',
       transport_commun: 'Transport en commun',
@@ -59,7 +59,7 @@ export default function ValidatedJourneysScreen(): JSX.Element {
 
   const getTransportIcon = (type: string): string => {
     const icons: Record<string, string> = {
-      apied: '🚶',
+      marche: '🚶',
       velo: '🚴',
       voiture: '🚗',
       transport_commun: '🚌',

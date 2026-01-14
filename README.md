@@ -224,12 +224,12 @@ L'application consomme les endpoints suivants :
   "time_departure": "2024-01-15T08:30:00Z",
   "time_arrival": "2024-01-15T08:45:00Z",
   "distance_km": 2.5,
-  "transport_type": "apied",
+  "transport_type": "marche",
   "detection_source": "auto"
 }
 ```
 
-Types de transport : `apied`, `velo`, `transport_commun`, `voiture`
+Types de transport : `marche`, `velo`, `transport_commun`, `voiture`
 
 ## Checklist de validation
 

@@ -174,7 +174,7 @@ export default function HomeScreen(): JSX.Element {
 
   const getTransportLabel = (type: string): string => {
     const labels: Record<string, string> = {
-      apied: 'A pied',
+      marche: 'Marche',
       velo: 'Velo',
       voiture: 'Voiture',
       transport_commun: 'Transport en commun',
