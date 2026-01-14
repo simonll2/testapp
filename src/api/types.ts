@@ -40,6 +40,12 @@ export interface TokenResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
+  user_id: number;
+}
+
+export interface UserInfo {
+  id: number;
+  username: string;
 }
 
 // User registration request

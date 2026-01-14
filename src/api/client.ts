@@ -180,22 +180,20 @@ class ApiClient {
    * Register a new user
    */
   async register(userData: UserRegister): Promise<TokenResponse> {
-    const response = await fetch(`${this.baseUrl}/register`, {
+    // 1) create user
+    const createResp = await fetch(`${this.baseUrl}/users`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(userData),
     });
 
-    if (!response.ok) {
-      const errorBody = await response.text();
+    if (!createResp.ok) {
+      const errorBody = await createResp.text();
       throw new Error(`Registration failed: ${errorBody}`);
     }
 
-    const tokens: TokenResponse = await response.json();
-    await this.saveTokens(tokens);
-    return tokens;
+    // 2) login to get tokens
+    return this.login(userData.username, userData.password);
   }
 
   /**
