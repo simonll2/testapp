@@ -48,13 +48,25 @@ enum class DetectedActivityType {
 
     companion object {
         /**
-         * Convert from Google's DetectedActivity type constant
+         * Convert from Google's DetectedActivity type constant.
+         *
+         * Mapping des constantes Google Activity Recognition :
+         * - 0 = IN_VEHICLE (véhicule motorisé)
+         * - 1 = ON_BICYCLE (vélo)
+         * - 2 = ON_FOOT (déplacement à pied, catégorie générique)
+         * - 3 = STILL (immobile)
+         * - 7 = WALKING (marche, sous-type de ON_FOOT)
+         * - 8 = RUNNING (course, sous-type de ON_FOOT)
+         *
+         * Note: ON_FOOT (2) est renvoyé par Google quand l'utilisateur se déplace
+         * à pied mais le système n'est pas sûr s'il marche ou court.
+         * C'est une activité de MOUVEMENT, pas d'immobilité.
          */
         fun fromGoogleActivityType(type: Int): DetectedActivityType {
             return when (type) {
                 0 -> IN_VEHICLE      // DetectedActivity.IN_VEHICLE
                 1 -> ON_BICYCLE      // DetectedActivity.ON_BICYCLE
-                2 -> STILL           // DetectedActivity.ON_FOOT - treat as walking
+                2 -> WALKING         // DetectedActivity.ON_FOOT → traité comme marche (c'est un déplacement!)
                 3 -> STILL           // DetectedActivity.STILL
                 7 -> WALKING         // DetectedActivity.WALKING
                 8 -> RUNNING         // DetectedActivity.RUNNING
