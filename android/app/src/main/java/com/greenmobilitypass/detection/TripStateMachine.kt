@@ -18,6 +18,10 @@ class TripStateMachine {
         private const val MIN_CONFIDENCE = 60
         private const val MIN_TRIP_START_EVENTS = 4  // ~2 min with 30s intervals
         private const val MIN_TRIP_END_EVENTS = 6    // ~3 min with 30s intervals
+
+        // Mode normal: tolérer jusqu'à 2 minutes de STILL (pauses courtes)
+        // Avec intervalle de 30s, cela correspond à 4 événements STILL
+        private const val STILL_PAUSE_TOLERANCE = 4  // ~2 min de pause tolérée
     }
 
     private var currentState: TripState = TripState.IDLE
@@ -33,6 +37,9 @@ class TripStateMachine {
     // Track consecutive moving events for trip start detection
     private var consecutiveMovingEvents = 0
 
+    // Compteur de pauses tolérées pendant un trajet
+    private var pauseStillCount = 0
+
     // Listener for trip detection events
     var onTripDetected: ((DetectedTrip) -> Unit)? = null
 
@@ -45,22 +52,29 @@ class TripStateMachine {
         Log.d(TAG, "Processing activity: ${event.activityType}, confidence: ${event.confidence}, state: $currentState, debugMode: $debugMode")
 
         /**
-         * DEBUG MODE:
-         * - Does NOT mock Activity Recognition API
-         * - Requires at least one real activity event
-         * - Bypasses trip duration and end conditions
-         * - Creates a trip immediately on first movement
+         * DEBUG MODE TERRAIN:
+         * - Bypass total de la state machine normale
+         * - Ignore confidence (aucun seuil requis)
+         * - Ignore durée minimale
+         * - Ignore nombre d'événements consécutifs
+         * - Crée immédiatement un trajet factice réaliste
+         * - Un seul événement de mouvement suffit
          */
         if (debugMode && isMovingActivity(event)) {
-            Log.d(TAG, "DEBUG MODE ACTIVE - forcing trip for ${event.activityType} with confidence ${event.confidence}")
+            Log.d(TAG, "🔧 DEBUG MODE TERRAIN ACTIF")
+            Log.d(TAG, "🔧 Activity: ${event.activityType.name}")
+            Log.d(TAG, "🔧 Confidence: ${event.confidence} (ignoré en debug)")
+            Log.d(TAG, "🔧 BYPASS: création immédiate du trajet")
 
             val now = System.currentTimeMillis()
-            val twoMinutesMs = 2 * 60 * 1000L
+            // Durée fixe de 2 minutes (trajet factice réaliste)
             val durationMinutes = 2
-            val distanceKm = 0.15 // small indoor-ish distance
+            val durationMs = durationMinutes * 60 * 1000L
+            // Distance faible fixe (indoor-ish)
+            val distanceKm = 0.15
 
             val detectedTrip = DetectedTrip(
-                timeDeparture = now - twoMinutesMs,
+                timeDeparture = now - durationMs,
                 timeArrival = now,
                 durationMinutes = durationMinutes,
                 distanceKm = String.format("%.2f", distanceKm).toDouble(),
@@ -68,9 +82,13 @@ class TripStateMachine {
                 confidenceAvg = event.confidence
             )
 
+            Log.d(TAG, "🔧 Trajet créé: ${detectedTrip.transportType}, ${detectedTrip.durationMinutes}min, ${detectedTrip.distanceKm}km")
+
             onTripDetected?.invoke(detectedTrip)
             resetState()
             currentState = TripState.IDLE
+
+            Log.d(TAG, "🔧 State machine reset -> IDLE")
             return
         }
 
@@ -102,15 +120,24 @@ class TripStateMachine {
         if (isMovingActivity(event)) {
             tripActivities.add(event)
             consecutiveStillEvents = 0
+            pauseStillCount = 0  // Reset pause counter on movement
         }
 
         // Check for trip end condition
         if (event.activityType == DetectedActivityType.STILL && event.confidence >= MIN_CONFIDENCE) {
             consecutiveStillEvents++
-            Log.d(TAG, "STILL event detected, consecutive: $consecutiveStillEvents")
+            pauseStillCount++
+            Log.d(TAG, "STILL event detected, consecutive: $consecutiveStillEvents, pauseCount: $pauseStillCount")
+
+            // Tolérer les pauses courtes (feux rouges, arrêts de bus, etc.)
+            if (pauseStillCount <= STILL_PAUSE_TOLERANCE) {
+                Log.d(TAG, "Pause tolérée ($pauseStillCount/$STILL_PAUSE_TOLERANCE), trip continues")
+                return  // Ne pas terminer le trajet
+            }
 
             if (consecutiveStillEvents >= MIN_TRIP_END_EVENTS) {
-                // End the trip
+                // End the trip only after extended STILL period
+                Log.d(TAG, "Extended STILL period detected, ending trip")
                 endTrip(event)
             }
         }
@@ -208,6 +235,7 @@ class TripStateMachine {
         tripActivities.clear()
         consecutiveStillEvents = 0
         consecutiveMovingEvents = 0
+        pauseStillCount = 0
         tripStartTime = 0
         tripEndTime = 0
     }

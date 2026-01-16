@@ -30,7 +30,11 @@ class TripDetectionService : LifecycleService() {
         private const val TAG = "TripDetectionService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "trip_detection_channel"
-        private const val ACTIVITY_DETECTION_INTERVAL_MS = 30000L // 30 seconds
+
+        // Intervalle adaptatif selon le mode
+        private const val INTERVAL_NORMAL = 30_000L  // 30 secondes en mode normal
+        private const val INTERVAL_DEBUG = 5_000L   // 5 secondes en mode debug
+
         private const val PREFS_NAME = "trip_detection_prefs"
         private const val KEY_DEBUG_MODE = "debug_mode"
 
@@ -41,6 +45,14 @@ class TripDetectionService : LifecycleService() {
 
         fun isRunning(): Boolean = instance != null
     }
+
+    // Variables de debug exposées pour l'UI React Native
+    var lastActivityType: String = "NONE"
+        private set
+    var lastConfidence: Int = 0
+        private set
+    var lastEventTimestamp: Long = 0
+        private set
 
     private lateinit var activityRecognitionClient: ActivityRecognitionClient
     private lateinit var pendingIntent: PendingIntent
@@ -156,7 +168,8 @@ class TripDetectionService : LifecycleService() {
     }
 
     private fun registerActivityRecognition() {
-        Log.d(TAG, "Registering Activity Recognition with ${ACTIVITY_DETECTION_INTERVAL_MS}ms interval")
+        val interval = if (debugMode) INTERVAL_DEBUG else INTERVAL_NORMAL
+        Log.d(TAG, "Registering Activity Recognition with ${interval}ms interval (debugMode=$debugMode)")
 
         val intent = Intent(this, ActivityRecognitionReceiver::class.java)
         pendingIntent = PendingIntent.getBroadcast(
@@ -167,13 +180,36 @@ class TripDetectionService : LifecycleService() {
         )
 
         activityRecognitionClient
-            .requestActivityUpdates(ACTIVITY_DETECTION_INTERVAL_MS, pendingIntent)
+            .requestActivityUpdates(interval, pendingIntent)
             .addOnSuccessListener {
-                Log.d(TAG, "Activity Recognition registered successfully")
+                Log.d(TAG, "Activity Recognition registered successfully with ${interval}ms interval")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to register activity recognition", e)
             }
+    }
+
+    /**
+     * Réenregistre Activity Recognition avec le nouvel intervalle
+     * Appelé lors du changement de mode debug à chaud
+     */
+    private fun reregisterActivityRecognition() {
+        Log.d(TAG, "Reregistering Activity Recognition for mode change")
+        if (::pendingIntent.isInitialized) {
+            activityRecognitionClient
+                .removeActivityUpdates(pendingIntent)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Activity recognition removed, re-registering...")
+                    registerActivityRecognition()
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to remove activity recognition", e)
+                    // Tenter quand même de réenregistrer
+                    registerActivityRecognition()
+                }
+        } else {
+            registerActivityRecognition()
+        }
     }
 
     private fun unregisterActivityRecognition() {
@@ -196,6 +232,14 @@ class TripDetectionService : LifecycleService() {
         Log.d(TAG, "onActivityDetected: type=$activityType confidence=$confidence debugMode=$debugMode")
 
         val detectedType = DetectedActivityType.fromGoogleActivityType(activityType)
+
+        // Mettre à jour les variables de debug pour l'UI
+        lastActivityType = detectedType.name
+        lastConfidence = confidence
+        lastEventTimestamp = System.currentTimeMillis()
+
+        Log.d(TAG, "DEBUG STATE: lastActivityType=$lastActivityType lastConfidence=$lastConfidence timestamp=$lastEventTimestamp")
+
         val event = ActivityEvent(
             activityType = detectedType,
             confidence = confidence
@@ -247,12 +291,25 @@ class TripDetectionService : LifecycleService() {
     /**
      * Set debug mode - enables immediate trip detection on any movement
      * Persisted across service restarts
+     * Réenregistre Activity Recognition avec l'intervalle approprié
      */
     fun setDebugMode(enabled: Boolean) {
+        val previousMode = debugMode
         debugMode = enabled
         // Persist to SharedPreferences for session persistence
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_DEBUG_MODE, enabled).apply()
         Log.d(TAG, "Debug mode set to: $enabled (persisted)")
+
+        // Réenregistrer Activity Recognition si le mode a changé
+        if (previousMode != enabled) {
+            Log.d(TAG, "Mode changed from $previousMode to $enabled, reregistering Activity Recognition")
+            reregisterActivityRecognition()
+        }
     }
+
+    /**
+     * Retourne la state machine pour accès externe (debug)
+     */
+    fun getStateMachine(): TripStateMachine = stateMachine
 }
