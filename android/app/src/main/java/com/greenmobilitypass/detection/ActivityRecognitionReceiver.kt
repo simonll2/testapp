@@ -3,6 +3,7 @@ package com.greenmobilitypass.detection
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.DetectedActivity
@@ -33,12 +34,18 @@ class ActivityRecognitionReceiver : BroadcastReceiver() {
         Log.d(TAG, "Activity detected: ${getActivityName(mostProbableActivity.type)}, " +
                 "confidence: ${mostProbableActivity.confidence}")
 
-        // Forward to service via local broadcast
-        val serviceIntent = Intent(ACTION_ACTIVITY_UPDATE).apply {
-            setPackage(context.packageName)
-            putExtra("activity_type", mostProbableActivity.type)
-            putExtra("confidence", mostProbableActivity.confidence)
-            putExtra("timestamp", System.currentTimeMillis())
+        // Ensure service is running before forwarding event
+        if (TripDetectionService.getInstance() == null) {
+            Log.w(TAG, "Service not running, attempting to start it")
+            val serviceIntent = Intent(context, TripDetectionService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+            // Service needs time to initialize, event might be lost
+            // This is acceptable for POC - next event will be processed
+            Log.d(TAG, "Service started, current event may be skipped")
         }
 
         // Send to running service
