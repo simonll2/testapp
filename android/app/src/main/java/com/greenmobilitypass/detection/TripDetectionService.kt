@@ -290,21 +290,49 @@ class TripDetectionService : LifecycleService() {
     fun isTrackingTrip(): Boolean = stateMachine.isTrackingTrip()
 
     /**
-     * Set debug mode - enables immediate trip detection on any movement
-     * Persisted across service restarts
-     * Réenregistre Activity Recognition avec l'intervalle approprié
+     * Set debug mode - enables immediate trip detection on any movement.
+     *
+     * ⚠️ DEBUG MODE TERRAIN (POC uniquement):
+     * - Quand activé: bypass la state machine, crée des trajets factices immédiatement
+     * - Intervalle Activity Recognition réduit à 5s (vs 30s en normal)
+     * - NE DOIT PAS être utilisé en "production"
+     *
+     * Persisted across service restarts via SharedPreferences.
+     * Réenregistre Activity Recognition avec l'intervalle approprié.
      */
     fun setDebugMode(enabled: Boolean) {
         val previousMode = _debugMode
         _debugMode = enabled
+
         // Persist to SharedPreferences for session persistence
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_DEBUG_MODE, enabled).apply()
-        Log.d(TAG, "Debug mode set to: $enabled (persisted)")
+
+        // Log explicite du changement de mode
+        if (enabled) {
+            Log.d(TAG, "╔═══════════════════════════════════════════════════════════╗")
+            Log.d(TAG, "║  🔧 DEBUG MODE ACTIVÉ                                     ║")
+            Log.d(TAG, "╠═══════════════════════════════════════════════════════════╣")
+            Log.d(TAG, "║  - Bypass state machine: OUI                              ║")
+            Log.d(TAG, "║  - Intervalle Activity Recognition: 5 secondes            ║")
+            Log.d(TAG, "║  - Seuil confidence: IGNORÉ                               ║")
+            Log.d(TAG, "║  - Trajets factices: 2min, 0.15km                         ║")
+            Log.d(TAG, "╚═══════════════════════════════════════════════════════════╝")
+        } else {
+            Log.d(TAG, "╔═══════════════════════════════════════════════════════════╗")
+            Log.d(TAG, "║  ✅ MODE NORMAL ACTIVÉ                                    ║")
+            Log.d(TAG, "╠═══════════════════════════════════════════════════════════╣")
+            Log.d(TAG, "║  - State machine: ACTIVE (détection standard)             ║")
+            Log.d(TAG, "║  - Intervalle Activity Recognition: 30 secondes           ║")
+            Log.d(TAG, "║  - Seuil confidence: 60%                                  ║")
+            Log.d(TAG, "║  - Trajets réels basés sur timestamps                     ║")
+            Log.d(TAG, "╚═══════════════════════════════════════════════════════════╝")
+        }
 
         // Réenregistrer Activity Recognition si le mode a changé
         if (previousMode != enabled) {
-            Log.d(TAG, "Mode changed from $previousMode to $enabled, reregistering Activity Recognition")
+            val newInterval = if (enabled) INTERVAL_DEBUG else INTERVAL_NORMAL
+            Log.d(TAG, "Mode changed: reregistering Activity Recognition with ${newInterval}ms interval")
             reregisterActivityRecognition()
         }
     }
