@@ -332,9 +332,16 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
     private fun hasRequiredPermissions(): Boolean {
         // For FGS type location on targetSdk 34+, you must hold FOREGROUND_SERVICE_LOCATION (manifest)
         // AND at runtime have at least COARSE or FINE location granted.
-        return hasActivityRecognitionPermission() &&
-                hasAnyLocationPermission() &&
-                (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasNotificationPermission())
+        //
+        // POST_NOTIFICATIONS n'est plus bloquante: la détection fonctionne même sans,
+        // seule la notification foreground service sera silencieuse
+        val hasCore = hasActivityRecognitionPermission() && hasAnyLocationPermission()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission()) {
+            Log.w(TAG, "POST_NOTIFICATIONS permission not granted - detection will work but notification will be silent")
+        }
+
+        return hasCore
     }
 
     private fun hasActivityRecognitionPermission(): Boolean {
@@ -394,6 +401,62 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
             EVENT_DETECTION_STATE_CHANGED,
             Arguments.createMap().apply { putBoolean("debugMode", enabled) }
         )
+    }
+
+    /**
+     * Retourne l'état interne de debug pour affichage dans l'UI React Native.
+     * Permet d'observer la détection en temps réel sans Logcat.
+     *
+     * Retourne un objet contenant:
+     * - serviceRunning: Boolean - si le service est actif
+     * - debugMode: Boolean - si le mode debug est activé
+     * - currentState: String - état de la state machine (IDLE, IN_TRIP, ENDED)
+     * - lastActivityType: String - dernier type d'activité détecté
+     * - lastConfidence: Int - dernière confiance (0-100)
+     * - lastEventTime: Long - timestamp du dernier événement
+     */
+    @ReactMethod
+    fun getDebugState(promise: Promise) {
+        try {
+            val service = TripDetectionService.getInstance()
+            val result = Arguments.createMap().apply {
+                // État du service
+                putBoolean("serviceRunning", service != null)
+
+                // Mode debug (depuis le module ou le service)
+                val isDebugMode = service?.debugMode ?: debugMode
+                putBoolean("debugMode", isDebugMode)
+
+                // État de la state machine
+                val currentState = service?.getStateMachine()?.getCurrentState()?.name ?: "UNKNOWN"
+                putString("currentState", currentState)
+
+                // Dernière activité détectée
+                val lastType = service?.lastActivityType ?: "NONE"
+                putString("lastActivityType", lastType)
+
+                // Dernière confiance
+                val lastConf = service?.lastConfidence ?: 0
+                putInt("lastConfidence", lastConf)
+
+                // Timestamp du dernier événement
+                val lastTime = service?.lastEventTimestamp ?: 0L
+                putDouble("lastEventTime", lastTime.toDouble())
+
+                // Infos supplémentaires pour debug avancé
+                putBoolean("isTrackingTrip", service?.isTrackingTrip() ?: false)
+            }
+
+            Log.d(TAG, "getDebugState: serviceRunning=${service != null}, " +
+                    "debugMode=${service?.debugMode ?: debugMode}, " +
+                    "currentState=${service?.getStateMachine()?.getCurrentState()?.name}, " +
+                    "lastActivity=${service?.lastActivityType}")
+
+            promise.resolve(result)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get debug state", e)
+            promise.reject("DEBUG_STATE_FAILED", e.message)
+        }
     }
 
     /**
