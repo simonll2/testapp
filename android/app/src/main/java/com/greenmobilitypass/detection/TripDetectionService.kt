@@ -59,8 +59,9 @@ class TripDetectionService : LifecycleService() {
     private lateinit var database: AppDatabase
     private val stateMachine = TripStateMachine()
 
-    // Debug mode flag - moved from TripDetectionModule to service for reliability
-    var debugMode: Boolean = false
+    // Debug mode flag - backing field privé pour éviter conflit JVM avec setDebugMode()
+    private var _debugMode: Boolean = false
+    val debugMode: Boolean get() = _debugMode
 
     // Listener for React Native events
     var onTripDetectedListener: ((LocalJourney) -> Unit)? = null
@@ -73,8 +74,8 @@ class TripDetectionService : LifecycleService() {
 
         // Restore debug mode from SharedPreferences
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        debugMode = prefs.getBoolean(KEY_DEBUG_MODE, false)
-        Log.d(TAG, "Debug mode restored: $debugMode")
+        _debugMode = prefs.getBoolean(KEY_DEBUG_MODE, false)
+        Log.d(TAG, "Debug mode restored: $_debugMode")
 
         database = AppDatabase.getInstance(applicationContext)
         activityRecognitionClient = ActivityRecognition.getClient(this)
@@ -294,8 +295,8 @@ class TripDetectionService : LifecycleService() {
      * Réenregistre Activity Recognition avec l'intervalle approprié
      */
     fun setDebugMode(enabled: Boolean) {
-        val previousMode = debugMode
-        debugMode = enabled
+        val previousMode = _debugMode
+        _debugMode = enabled
         // Persist to SharedPreferences for session persistence
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_DEBUG_MODE, enabled).apply()
