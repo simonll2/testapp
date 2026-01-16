@@ -38,36 +38,40 @@ class TripStateMachine {
 
     /**
      * Process a new activity event and potentially transition states.
+     * @param event The activity event to process
+     * @param debugMode Whether debug mode is enabled (from service)
      */
-    fun processActivity(event: ActivityEvent) {
-        Log.d(TAG, "Processing activity: ${event.activityType}, confidence: ${event.confidence}, state: $currentState")
+    fun processActivity(event: ActivityEvent, debugMode: Boolean = false) {
+        Log.d(TAG, "Processing activity: ${event.activityType}, confidence: ${event.confidence}, state: $currentState, debugMode: $debugMode")
 
-        // POC DEBUG: If global debug mode is enabled, force a short trip on low-confidence moving events
-        try {
-            if (com.greenmobilitypass.bridge.TripDetectionModule.debugMode && event.confidence >= 20 && isMovingActivity(event)) {
-                Log.d(TAG, "DEBUG mode active - forcing artificial trip for ${event.activityType}")
+        /**
+         * DEBUG MODE:
+         * - Does NOT mock Activity Recognition API
+         * - Requires at least one real activity event
+         * - Bypasses trip duration and end conditions
+         * - Creates a trip immediately on first movement
+         */
+        if (debugMode && isMovingActivity(event)) {
+            Log.d(TAG, "DEBUG MODE ACTIVE - forcing trip for ${event.activityType} with confidence ${event.confidence}")
 
-                val now = System.currentTimeMillis()
-                val twoMinutesMs = 2 * 60 * 1000L
-                val durationMinutes = 2
-                val distanceKm = 0.15 // small indoor-ish distance
+            val now = System.currentTimeMillis()
+            val twoMinutesMs = 2 * 60 * 1000L
+            val durationMinutes = 2
+            val distanceKm = 0.15 // small indoor-ish distance
 
-                val detectedTrip = DetectedTrip(
-                    timeDeparture = now - twoMinutesMs,
-                    timeArrival = now,
-                    durationMinutes = durationMinutes,
-                    distanceKm = String.format("%.2f", distanceKm).toDouble(),
-                    transportType = event.activityType.toTransportType(),
-                    confidenceAvg = event.confidence
-                )
+            val detectedTrip = DetectedTrip(
+                timeDeparture = now - twoMinutesMs,
+                timeArrival = now,
+                durationMinutes = durationMinutes,
+                distanceKm = String.format("%.2f", distanceKm).toDouble(),
+                transportType = event.activityType.toTransportType(),
+                confidenceAvg = event.confidence
+            )
 
-                onTripDetected?.invoke(detectedTrip)
-                resetState()
-                currentState = TripState.IDLE
-                return
-            }
-        } catch (e: Throwable) {
-            Log.e(TAG, "Error while applying debug force-trip", e)
+            onTripDetected?.invoke(detectedTrip)
+            resetState()
+            currentState = TripState.IDLE
+            return
         }
 
         when (currentState) {

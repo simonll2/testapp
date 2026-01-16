@@ -386,7 +386,9 @@ class TripDetectionModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun setDebugMode(enabled: Boolean) {
         debugMode = enabled
-        Log.d(TAG, "Debug mode set: $enabled")
+        // Propagate to service for reliable access by state machine
+        TripDetectionService.getInstance()?.setDebugMode(enabled)
+        Log.d(TAG, "Debug mode set: $enabled (propagated to service)")
         // Notify JS that detection state did not change, but useful for UI
         sendEvent(
             EVENT_DETECTION_STATE_CHANGED,

@@ -31,6 +31,8 @@ class TripDetectionService : LifecycleService() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "trip_detection_channel"
         private const val ACTIVITY_DETECTION_INTERVAL_MS = 30000L // 30 seconds
+        private const val PREFS_NAME = "trip_detection_prefs"
+        private const val KEY_DEBUG_MODE = "debug_mode"
 
         @Volatile
         private var instance: TripDetectionService? = null
@@ -45,6 +47,9 @@ class TripDetectionService : LifecycleService() {
     private lateinit var database: AppDatabase
     private val stateMachine = TripStateMachine()
 
+    // Debug mode flag - moved from TripDetectionModule to service for reliability
+    var debugMode: Boolean = false
+
     // Listener for React Native events
     var onTripDetectedListener: ((LocalJourney) -> Unit)? = null
 
@@ -53,6 +58,11 @@ class TripDetectionService : LifecycleService() {
         instance = this
 
         Log.d(TAG, "Service onCreate")
+
+        // Restore debug mode from SharedPreferences
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        debugMode = prefs.getBoolean(KEY_DEBUG_MODE, false)
+        Log.d(TAG, "Debug mode restored: $debugMode")
 
         database = AppDatabase.getInstance(applicationContext)
         activityRecognitionClient = ActivityRecognition.getClient(this)
@@ -146,6 +156,8 @@ class TripDetectionService : LifecycleService() {
     }
 
     private fun registerActivityRecognition() {
+        Log.d(TAG, "Registering Activity Recognition with ${ACTIVITY_DETECTION_INTERVAL_MS}ms interval")
+
         val intent = Intent(this, ActivityRecognitionReceiver::class.java)
         pendingIntent = PendingIntent.getBroadcast(
             this,
@@ -157,7 +169,7 @@ class TripDetectionService : LifecycleService() {
         activityRecognitionClient
             .requestActivityUpdates(ACTIVITY_DETECTION_INTERVAL_MS, pendingIntent)
             .addOnSuccessListener {
-                Log.d(TAG, "Activity recognition registered successfully")
+                Log.d(TAG, "Activity Recognition registered successfully")
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed to register activity recognition", e)
@@ -181,7 +193,7 @@ class TripDetectionService : LifecycleService() {
      * Called by ActivityRecognitionReceiver when activity is detected
      */
     fun onActivityDetected(activityType: Int, confidence: Int) {
-        Log.d(TAG, "Activity detected: type=$activityType, confidence=$confidence")
+        Log.d(TAG, "onActivityDetected: type=$activityType confidence=$confidence debugMode=$debugMode")
 
         val detectedType = DetectedActivityType.fromGoogleActivityType(activityType)
         val event = ActivityEvent(
@@ -189,7 +201,7 @@ class TripDetectionService : LifecycleService() {
             confidence = confidence
         )
 
-        stateMachine.processActivity(event)
+        stateMachine.processActivity(event, debugMode)
     }
 
     private fun saveTrip(trip: DetectedTrip) {
@@ -206,10 +218,13 @@ class TripDetectionService : LifecycleService() {
                     placeArrival = "Unknown"
                 )
 
+                // Save to database first - this ensures persistence even if listener is null
                 val id = database.localJourneyDao().insertJourney(localJourney)
                 Log.d(TAG, "Trip saved with ID: $id")
 
-                // Notify listener (React Native)
+                // Notify listener (React Native) if attached
+                // Note: Listener may be null if service was restarted by system
+                // UI will still show trips via getPendingJourneys() call on screen focus
                 val savedJourney = localJourney.copy(id = id)
                 onTripDetectedListener?.invoke(savedJourney)
 
@@ -228,4 +243,16 @@ class TripDetectionService : LifecycleService() {
      * Check if currently tracking a trip
      */
     fun isTrackingTrip(): Boolean = stateMachine.isTrackingTrip()
+
+    /**
+     * Set debug mode - enables immediate trip detection on any movement
+     * Persisted across service restarts
+     */
+    fun setDebugMode(enabled: Boolean) {
+        debugMode = enabled
+        // Persist to SharedPreferences for session persistence
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_DEBUG_MODE, enabled).apply()
+        Log.d(TAG, "Debug mode set to: $enabled (persisted)")
+    }
 }
